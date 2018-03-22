@@ -76,6 +76,16 @@ def create_node(op, idx):
         camera = create(camera_name, op.get_camera(node['camera']))
         objects.append(camera)
 
+    if 'extensions' in node:
+        for key in node['extensions']:
+            m = getattr(op, 'get_' + key, None)
+            if not m:
+                continue
+            pieces = key.split('_', 1)
+            name = '%s[%d]' % (pieces[-1], idx)
+            ext_data = node['extensions'][key]
+            objects.append(create(name + ".ext", m(ext_data)))
+
     if not objects:
         name = node.get('name', 'node[%d]' % idx)
         objects.append(create(name, None))
