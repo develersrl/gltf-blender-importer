@@ -1,12 +1,13 @@
 import json
 import os
 import struct
+import math
 
 import bpy
 from bpy.props import StringProperty
 from bpy_extras.io_utils import ImportHelper
 
-from io_scene_gltf import animation, buffer, material, mesh, node, camera
+from io_scene_gltf import animation, buffer, material, mesh, node, camera, lights
 
 bl_info = {
     'name': 'glTF 2.0 Importer',
@@ -72,6 +73,25 @@ class ImportGLTF(bpy.types.Operator, ImportHelper):
         if idx not in self.cameras:
             self.cameras[idx] = camera.create_camera(self, idx)
         return self.cameras[idx]
+
+    def get_KHR_lights(self, data):
+        idx = data["light"]
+        desc = self.gltf['extensions']['KHR_lights']['lights'][idx]
+
+        ltype = desc["type"]
+        color = desc.get("color", (0, 0, 0))
+        name = "%s light[%d]" % (ltype, idx)
+        if ltype == "point":
+            return lights.add_point_light(
+                color, desc.get("intensity", 1), name)
+        elif ltype == "spot":
+            return lights.add_spot_light(
+                color,
+                desc.get("intensity", 1),
+                desc.get("innerConeAngle", 0),
+                desc.get("outerConeAngle", math.pi / 4),
+                name)
+        return
 
     def generate_actions(self):
         if 'animations' in self.gltf:
