@@ -1,25 +1,6 @@
 import bpy
 import math
 
-
-# def add_ambient_light(scene, color):
-#     """
-#     Add an ambient light to the scene with the RGB color
-#     """
-#     world = bpy.data.worlds[scene.world.name]
-#     world.use_nodes = True
-# 
-#     tree = world.node_tree
-#     try:
-#         bg = tree.nodes['Background']
-#     except KeyError:
-#         tree.nodes.new(type='ShaderNodeBackground')
-#         bg = tree.nodes['Background']
-# 
-#     world_output = tree.nodes['World Output']
-#     tree.links.new(world_output.inputs['Surface'], bg.outputs['Background'])
-#     bg.inputs['Color'].default_value = color + (1,)
-
 incandescent_bulb = 0.0249
 
 
@@ -94,7 +75,7 @@ def add_directional_light(color, intensity, name=None):
     Create a new directional light data object.
 
     `color` is an rgb tuple
-    `intensity` is expressed in candles
+    `intensity` is expressed in lux
     """
     name = name or "Directional"
 
@@ -107,3 +88,31 @@ def add_directional_light(color, intensity, name=None):
     watt = lux2W(intensity, incandescent_bulb)
     emission.inputs['Strength'].default_value = watt
     return lamp_data
+
+
+def setup_ambient_light(scene, color, intensity):
+    """
+    Setup the ambient light of a scene
+
+    `scene` a blender scene
+    `color` is an rgb tuple
+    `intensity` is expressed in lux
+    """
+    if not scene.world:
+        world = bpy.data.worlds.new("World")
+        scene.world = world
+    else:
+        world = scene.world
+    world.use_nodes = True
+
+    tree = world.node_tree
+    try:
+        bg = tree.nodes['Background']
+    except KeyError:
+        bg = tree.nodes.new(type='ShaderNodeBackground')
+
+    bg.inputs['Color'].default_value = tuple(color) + (1,)
+    bg.inputs['Strength'].default_value = lux2W(intensity, incandescent_bulb)
+
+    world_output = tree.nodes['World Output']
+    tree.links.new(world_output.inputs['Surface'], bg.outputs['Background'])

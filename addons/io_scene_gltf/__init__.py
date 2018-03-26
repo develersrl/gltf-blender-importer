@@ -92,13 +92,27 @@ class ImportGLTF(bpy.types.Operator, ImportHelper):
                 desc.get("innerConeAngle", 0),
                 desc.get("outerConeAngle", math.pi / 4),
                 name)
-        if ltype == "directional":
+        elif ltype == "directional":
             return (
                 lights.add_directional_light(
                     color, desc.get("intensity", 1), name),
                 {'rot': Quaternion((0, 1, 0), math.pi)}
             )
         return
+
+    def setup_scene_KHR_lights(self, scene, data):
+        idx = data["light"]
+        desc = self.gltf['extensions']['KHR_lights']['lights'][idx]
+
+        if desc["type"] != "ambient":
+            # the gltf document is invalid; only an ambient light can be
+            # directly associated with a scene
+            return
+
+        lights.setup_ambient_light(
+            scene,
+            desc.get("color", (0, 0, 0)),
+            desc.get("intensity", 1))
 
     def generate_actions(self):
         if 'animations' in self.gltf:
