@@ -171,6 +171,13 @@ def create_scenes(op):
             blender_scene = bpy.context.scene
             blender_scene.name = scene.get('name', 'scene[%d]' % scene_idx)
 
+        if 'extensions' in scene:
+            for key in scene['extensions']:
+                m = getattr(op, 'setup_scene_' + key, None)
+                if not m:
+                    continue
+                m(blender_scene, scene['extensions'][key])
+
         op.scenes[scene_idx] = blender_scene
         blender_scene.render.engine = 'CYCLES'
         roots = scene.get('nodes', [])
