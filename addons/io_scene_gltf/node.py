@@ -38,7 +38,7 @@ def convert_quaternion(q):
     return Quaternion([q[3], q[0], q[1], q[2]])
 
 
-def set_transform(node, ob):
+def set_transform(node, ob, pre_transform):
     if 'matrix' in node:
         m = node['matrix']
         m = convert_matrix(m)
@@ -48,6 +48,22 @@ def set_transform(node, ob):
         rot = node.get('rotation', [0.0, 0.0, 0.0, 1.0])
         rot = convert_quaternion(rot)  # xyzw -> wxyz
         loc = node.get('translation', [0.0, 0.0, 0.0])
+
+    if pre_transform:
+        if 'rot' in pre_transform:
+            rot = rot * pre_transform['rot']
+
+        if 'sca' in pre_transform:
+            s = pre_transform['sca']
+            sca[0] *= s[0]
+            sca[1] *= s[1]
+            sca[2] *= s[2]
+
+        if 'loc' in pre_transform:
+            l = pre_transform['loc']
+            loc[0] += l[0]
+            loc[1] += l[1]
+            loc[2] += l[2]
 
     ob.location = loc
     ob.rotation_mode = 'QUATERNION'
@@ -82,16 +98,26 @@ def create_node(op, idx):
             if not m:
                 continue
             pieces = key.split('_', 1)
-            name = '%s[%d]' % (pieces[-1], idx)
-            ext_data = node['extensions'][key]
-            objects.append(create(name + ".ext", m(ext_data)))
+            name = node.get('name', '%s[%d].ext' % (pieces[-1], idx))
+            ext = m(node['extensions'][key])
+            if isinstance(ext, tuple):
+                ext_data, pre_t = ext
+            else:
+                ext_data = ext
+                pre_t = None
+            objects.append((create(name, ext_data), pre_t))
 
     if not objects:
         name = node.get('name', 'node[%d]' % idx)
         objects.append(create(name, None))
 
-    for obj in objects:
-        set_transform(node, obj)
+    for ix, obj in enumerate(objects):
+        if isinstance(obj, tuple):
+            obj, pre_transform = obj
+            objects[ix] = obj
+        else:
+            pre_transform = None
+        set_transform(node, obj, pre_transform)
 
     parent = objects[0]
     children = node.get('children', [])
