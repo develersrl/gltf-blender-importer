@@ -33,6 +33,14 @@ def cd2W(intensity, efficiency, surface):
     return lumens / (efficiency * 683)
 
 
+def lux2W(intensity, efficiency):
+    """
+    intensity in lux (lm/m2)
+    efficency is a factor
+    """
+    return intensity / (efficiency * 683)
+
+
 def add_point_light(color, intensity, name=None):
     """
     Create a new point light data object.
@@ -62,7 +70,7 @@ def add_spot_light(
     `intensity` is expressed in candles
     `innerConeAngle` and `outerConeAngle` is expressed in radians
     """
-    name = name or "Point"
+    name = name or "Spot"
 
     lamp_data = bpy.data.lamps.new(name=name, type='SPOT')
     lamp_data.use_nodes = True
@@ -78,4 +86,24 @@ def add_spot_light(
         incandescent_bulb,
         surface=2 * math.pi * (1 - math.cos(outerConeAngle / 2)),
     )
+    return lamp_data
+
+
+def add_directional_light(color, intensity, name=None):
+    """
+    Create a new directional light data object.
+
+    `color` is an rgb tuple
+    `intensity` is expressed in candles
+    """
+    name = name or "Directional"
+
+    lamp_data = bpy.data.lamps.new(name=name, type='SUN')
+    lamp_data.use_nodes = True
+
+    emission = lamp_data.node_tree.nodes['Emission']
+    emission.inputs['Color'].default_value = tuple(color) + (1,)
+
+    watt = lux2W(intensity, incandescent_bulb)
+    emission.inputs['Strength'].default_value = watt
     return lamp_data

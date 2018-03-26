@@ -4,6 +4,7 @@ import struct
 import math
 
 import bpy
+from mathutils import Quaternion
 from bpy.props import StringProperty
 from bpy_extras.io_utils import ImportHelper
 
@@ -91,6 +92,12 @@ class ImportGLTF(bpy.types.Operator, ImportHelper):
                 desc.get("innerConeAngle", 0),
                 desc.get("outerConeAngle", math.pi / 4),
                 name)
+        if ltype == "directional":
+            return (
+                lights.add_directional_light(
+                    color, desc.get("intensity", 1), name),
+                {'rot': Quaternion((0, 1, 0), math.pi)}
+            )
         return
 
     def generate_actions(self):
