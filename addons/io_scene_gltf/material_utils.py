@@ -33,7 +33,6 @@ def load_image_from_source(op, source):
             return call_on_tempfile(load_image, buf)
         else:
             image_path = os.path.join(op.base_path, uri)
-            print(">", image_path)
             return load_image(image_path)
     else:
         buf, _ = op.get_buffer_view(source['bufferView'])

@@ -30,7 +30,7 @@ def create_material_from_properties(op, material, material_name):
 
     alpha_mode = material.get('alphaMode', 'OPAQUE')
     alpha_cutoff = None if alpha_mode != 'MASK' else material.get('alphaCutoff', 0.5)
-    node = _add_color_node(
+    node = _add_color_group(
         tree,
         base_factor=material.get('baseColorFactor', [1, 1, 1, 1]),
         texture=texture,
@@ -41,9 +41,9 @@ def create_material_from_properties(op, material, material_name):
     return mat
 
 
-def _add_color_node(tree, base_factor, texture=None, alpha='OPAQUE', alpha_cutoff=None):
+def _add_color_group(material_tree, base_factor, texture=None, alpha='OPAQUE', alpha_cutoff=None):
     """
-    Add to the tree the nodes needed to implement the color specified
+    Add to the material tree the nodes needed to implement the color specified
 
     In glTF a color is described by:
 
@@ -59,26 +59,51 @@ def _add_color_node(tree, base_factor, texture=None, alpha='OPAQUE', alpha_cutof
 
     A missing texture is interpreted as a white image.
 
-    The return value is a Blender node with a "Color" output.
+    The alpha argument is an enum with only three values:
+    'OPAQUE' | 'MASK' | 'BLEND'.
+
+    - if 'OPAQUE' the alpha channel is ignored
+    - if 'BLEND' the pixel color must be blended with the background
+    - if 'MASK' the pixel color is completly opaque if the alpha channel is
+      lesser than `alpha_cutoff`, opaque otherwise.
+
+    The return value is a node with two outputs: "Color" and "Alpha".
+
+    The "Color" output is an RGB ready to be linked to the "Base Color" input
+    of a "PrincipledBSDF".
+
+    The "Alpha" output can be used only if the alpha argument is not 'OPAQUE';
+    the caller should mix the "BSDF" ouput of a "PrincipledBSDF" with the
+    output of a "TransparentBSDF" using the "Alpha" output as the mix factor.
     """
+    tree = bpy.data.node_groups.new("Color Group", 'ShaderNodeTree')
+    tree.outputs.new('NodeSocketColor', 'Color')
+    tree.outputs.new('NodeSocketShader', 'Alpha')
+    outputs = tree.nodes.new('NodeGroupOutput')
+
     factor = tree.nodes.new('ShaderNodeRGB')
     factor.label = "Color multiplier"
     factor.outputs['Color'].default_value = base_factor
 
     if texture is None:
-        return factor
+        tree.links.new(factor.outputs['Color'], outputs.inputs['Color'])
+    else:
+        tex_node = tree.nodes.new('ShaderNodeTexImage')
+        tex_node.color_space = 'COLOR'
+        tex_node.image = texture['image']
+        _configure_sampling(tex_node, texture['sampler'])
 
-    tex_node = tree.nodes.new('ShaderNodeTexImage')
-    tex_node.color_space = 'COLOR'
-    tex_node.image = texture['image']
-    _configure_sampling(tex_node, texture['sampler'])
+        mixer = tree.nodes.new('ShaderNodeMixRGB')
+        mixer.blend_type = 'MULTIPLY'
+        tree.links.new(tex_node.outputs['Color'], mixer.inputs['Color1'])
+        tree.links.new(factor.outputs['Color'], mixer.inputs['Color2'])
 
-    mixer = tree.nodes.new('ShaderNodeMixRGB')
-    mixer.blend_type = 'MULTIPLY'
-    tree.links.new(tex_node.outputs['Color'], mixer.inputs['Color1'])
-    tree.links.new(factor.outputs['Color'], mixer.inputs['Color2'])
+        tree.links.new(mixer.outputs['Color'], outputs.inputs['Color'])
 
-    return mixer
+    color_group = material_tree.nodes.new('ShaderNodeGroup')
+    color_group.label = "Material color"
+    color_group.node_tree = tree
+    return color_group
 
 
 _sampler_filter = {
