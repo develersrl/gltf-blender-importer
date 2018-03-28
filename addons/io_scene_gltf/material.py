@@ -189,6 +189,11 @@ def create_pbr_group():
     return tree
 
 
+def has_principled_shader():
+    "Checks if blender has a native shader for the principled bsdf"
+    return hasattr(bpy.types, 'ShaderNodeBsdfPrincipled')
+
+
 def get_pbr_group(op):
     if not op.pbr_group:
         op.pbr_group = create_pbr_group()
@@ -198,6 +203,9 @@ def get_pbr_group(op):
 def create_material(op, idx):
     material = op.gltf['materials'][idx]
     material_name = material.get('name', 'materials[%d]' % idx)
+    if has_principled_shader():
+        from io_scene_gltf import material_principled
+        return material_principled.create_material_from_properties(op, material, material_name)
     return create_material_from_properties(op, material, material_name)
 
 
