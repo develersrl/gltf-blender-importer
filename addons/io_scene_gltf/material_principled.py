@@ -50,6 +50,25 @@ def create_material_from_properties(op, material, material_name):
     )
     links.new(clr.outputs['Color'], pbr.inputs['Base Color'])
 
+    pbr.inputs['Metallic'].default_value = pbr_mr.get('metallicFactor', 1)
+    pbr.inputs['Roughness'].default_value = pbr_mr.get('roughnessFactor', 1)
+
+    if 'metallicRoughnessTexture' in pbr_mr:
+        index = pbr_mr['baseColorTexture']['index']
+        mr_data = op.gltf['textures'][index]
+        texture = {
+            'color_space': 'NONE',
+            'image': load_image_from_source(op, op.gltf['images'][mr_data['source']]),
+            'label': "MetallicRoughness Texture",
+            'mFactor': pbr_mr.get('metallicFactor', 1),
+            'rFactor': pbr_mr.get('roughnessFactor', 1),
+            'sampler': op.gltf['samplers'][mr_data['sampler']],
+            'tex_coord': "TEXCOORD_" + str(mr_data.get('textCoord', 0)),
+        }
+        mr_node = _add_metallic_roughness_group(tree, texture)
+        tree.links.new(mr_node.outputs['Metalness'], pbr.inputs['Metallic'])
+        tree.links.new(mr_node.outputs['Roughness'], pbr.inputs['Roughness'])
+
     if 'normalTexture' in material:
         nrm_tx = material['normalTexture']
         index = nrm_tx['index']
@@ -79,10 +98,70 @@ def create_material_from_properties(op, material, material_name):
     return mat
 
 
+def _add_metallic_roughness_group(material_tree, texture):
+    """
+    Add a new group of nodes managing the metallic-roughness texture data to
+    apply to the PBR material.
+
+    In glTF a 'metallicRoughnessTexture', if present, refers to an RGB image
+    whose B channel is the metalness factor, and whose G channel is the
+    roughness factor.
+
+    These must be multiplied with the 'metallicFactor' and the 'roughnessFactor'
+    respectively.
+
+    The texture argument is a dict with two keys:
+    - image, a Blender Image instance
+    - sampler, the sampler object retrieved by the gltf document
+    - label, the string to set as label of the texture node
+    - color_space, either 'COLOR' or 'NONE' (for non-color data).
+    """
+    tree = bpy.data.node_groups.new("MetallicRoughness Group", 'ShaderNodeTree')
+    tree.outputs.new('NodeSocketFloatFactor', "Metalness")
+    tree.outputs.new('NodeSocketFloatFactor', "Roughness")
+    outputs = tree.nodes.new('NodeGroupOutput')
+
+    tex_node = _create_texture_node(tree, texture)
+
+    sep1 = tree.nodes.new('ShaderNodeSeparateRGB')
+    sep1.label = "Metalness"
+    tree.links.new(tex_node.outputs['Color'], sep1.inputs['Image'])
+
+    fac1 = tree.nodes.new('ShaderNodeMath')
+    fac1.label = "Metalness Multiplier"
+    fac1.operation = 'MULTIPLY'
+    fac1.inputs[0].default_value = texture['mFactor']
+    tree.links.new(sep1.outputs['B'], fac1.inputs[1])
+
+    sep2 = tree.nodes.new('ShaderNodeSeparateRGB')
+    sep2.label = "Roughness"
+    tree.links.new(tex_node.outputs['Color'], sep2.inputs['Image'])
+
+    fac2 = tree.nodes.new('ShaderNodeMath')
+    fac2.label = "Roughness Multiplier"
+    fac2.operation = 'MULTIPLY'
+    fac2.inputs[0].default_value = texture['rFactor']
+    tree.links.new(sep2.outputs['G'], fac2.inputs[1])
+
+    tree.links.new(fac1.outputs['Value'], outputs.inputs['Metalness'])
+    tree.links.new(fac2.outputs['Value'], outputs.inputs['Roughness'])
+
+    mr_group = material_tree.nodes.new('ShaderNodeGroup')
+    mr_group.label = "MetallicRoughness"
+    mr_group.node_tree = tree
+    return mr_group
+
+
 def _add_normal(tree, texture):
     """
     Add some normal texture nodes to the tree, together with a node to interpret
     the image as perturbation in tangent space.
+
+    The texture argument is a dict with two keys:
+    - image, a Blender Image instance
+    - sampler, the sampler object retrieved by the gltf document
+    - label, the string to set as label of the texture node
+    - color_space, either 'COLOR' or 'NONE' (for non-color data).
     """
     tex_node = _create_texture_node(tree, texture)
 
@@ -109,6 +188,8 @@ def _add_color_group(material_tree, base_factor, texture=None, alpha='OPAQUE', a
     The texture argument is a dict with two keys:
     - image, a Blender Image instance
     - sampler, the sampler object retrieved by the gltf document
+    - label, the string to set as label of the texture node
+    - color_space, either 'COLOR' or 'NONE' (for non-color data)
 
     A missing texture is interpreted as a white image.
 
@@ -166,7 +247,7 @@ def _add_color_group(material_tree, base_factor, texture=None, alpha='OPAQUE', a
 
 
     color_group = material_tree.nodes.new('ShaderNodeGroup')
-    color_group.label = "Material Base Color"
+    color_group.label = "Base Color"
     color_group.node_tree = tree
     return color_group
 
@@ -280,6 +361,12 @@ def _create_texture_node(tree, texture):
     2) a node for transforming the UVs coordinates (i.e. translate, scale, rotate)
     3) a node for the texture attached to the image, and configured with the given
        sampler.
+
+    The 'texture' dictionary must contain:
+    - image, a Blender Image instance
+    - sampler, the sampler object retrieved by the gltf document
+    - label, the string to set as label of the texture node
+    - color_space, either 'COLOR' or 'NONE' (for non-color data)
     """
     uv_map = tree.nodes.new("ShaderNodeUVMap")
     uv_map.uv_map = texture['tex_coord']
