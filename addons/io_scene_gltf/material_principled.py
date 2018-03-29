@@ -4,11 +4,12 @@ from io_scene_gltf.material_utils import load_image_from_source
 def create_material_from_properties(op, material, material_name):
     """
     Create a PBR Material by compbining a 'ShaderNodeBsdfPrincipled' node
-    and, possibly, textures and/ or values declared into 'op'.
+    and, possibly, textures and/ or values declared into 'material'.
 
     In case of 'alphaMode' not 'OPAQUE', the 'ShaderNodeBsdfPrincipled' node
     is combined with a 'ShaderNodeBsdfTransparent' node by mixing the result of
-    the former with the output of the latter by the alpha factor defined in 'op'.
+    the former with the output of the latter by the alpha factor defined in
+    'material'.
     """
     pbr_mr = material.get('pbrMetallicRoughness', {})
 
@@ -29,8 +30,11 @@ def create_material_from_properties(op, material, material_name):
         index = pbr_mr['baseColorTexture']['index']
         texture_data = op.gltf['textures'][index]
         texture = {
+            'color_space': 'COLOR',
             'image': load_image_from_source(op, op.gltf['images'][texture_data['source']]),
+            'label': "Base Color Texture",
             'sampler': op.gltf['samplers'][texture_data['sampler']],
+            'tex_coord': "TEXCOORD_" + str(texture_data.get('textCoord', 0)),
         }
     else:
         texture = None
@@ -46,6 +50,21 @@ def create_material_from_properties(op, material, material_name):
     )
     links.new(clr.outputs['Color'], pbr.inputs['Base Color'])
 
+    if 'normalTexture' in material:
+        nrm_tx = material['normalTexture']
+        index = nrm_tx['index']
+        normal_data = op.gltf['textures'][index]
+        normal_texture = {
+            'color_space': 'NONE',
+            'image': load_image_from_source(op, op.gltf['images'][normal_data['source']]),
+            'label': "Normal Texture",
+            'sampler': op.gltf['samplers'][normal_data['sampler']],
+            'scale': normal_data.get('scale', 1),
+            'tex_coord': "TEXCOORD_" + str(normal_data.get('textCoord', 0)),
+        }
+        nrm = _add_normal(tree, texture=normal_texture)
+        tree.links.new(nrm.outputs['Normal'], pbr.inputs['Normal'])
+
     if alpha_cutoff is None:
         links.new(pbr.outputs['BSDF'], mo.inputs['Surface'])
     else:
@@ -58,6 +77,21 @@ def create_material_from_properties(op, material, material_name):
         links.new(mix.outputs['Shader'], mo.inputs['Surface'])
     
     return mat
+
+
+def _add_normal(tree, texture):
+    """
+    Add some normal texture nodes to the tree, together with a node to interpret
+    the image as perturbation in tangent space.
+    """
+    tex_node = _create_texture_node(tree, texture)
+
+    nrm_map = tree.nodes.new('ShaderNodeNormalMap')
+    nrm_map.space = 'TANGENT'
+    nrm_map.uv_map = texture['tex_coord']
+    nrm_map.inputs['Strength'].default_value = texture['scale']
+    tree.links.new(tex_node.outputs['Color'], nrm_map.inputs['Color'])
+    return nrm_map
 
 
 def _add_color_group(material_tree, base_factor, texture=None, alpha='OPAQUE', alpha_cutoff=None):
@@ -110,10 +144,7 @@ def _add_color_group(material_tree, base_factor, texture=None, alpha='OPAQUE', a
         factor.label = "Color Multiplier"
         factor.outputs['Color'].default_value = base_factor
 
-        tex_node = tree.nodes.new('ShaderNodeTexImage')
-        tex_node.color_space = 'COLOR'
-        tex_node.image = texture['image']
-        _configure_sampling(tex_node, texture['sampler'])
+        tex_node = _create_texture_node(tree, texture)
 
         mixer = tree.nodes.new('ShaderNodeMixRGB')
         mixer.blend_type = 'MULTIPLY'
@@ -238,3 +269,35 @@ def _configure_sampling(image, sampler_data):
 
     image.extension = extend
     return image
+
+
+def _create_texture_node(tree, texture):
+    """
+    Create some nodes to store and manage a texture.
+
+    Specifically, it creates:
+    1) a node for the UV coordinate map to use during tex look-up
+    2) a node for transforming the UVs coordinates (i.e. translate, scale, rotate)
+    3) a node for the texture attached to the image, and configured with the given
+       sampler.
+    """
+    uv_map = tree.nodes.new("ShaderNodeUVMap")
+    uv_map.uv_map = texture['tex_coord']
+
+    tex_map = tree.nodes.new('ShaderNodeMapping')
+    tex_map.vector_type = 'TEXTURE'
+    # set tex mappings from `texture` dict (these are arrays of three elements)
+    # tex_map.translation = texture['translation']
+    # tex_map.scale = texture['scale']
+    # tex_map.rotation = texture['rotation']
+
+    tex_node = tree.nodes.new('ShaderNodeTexImage')
+    tex_node.label = texture['label']
+    tex_node.color_space = texture['color_space']
+    tex_node.image = texture['image']
+    _configure_sampling(tex_node, texture['sampler'])
+
+    tree.links.new(uv_map.outputs['UV'], tex_map.inputs['Vector'])
+    tree.links.new(tex_map.outputs['Vector'], tex_node.inputs['Vector'])
+    
+    return tex_node
