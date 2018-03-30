@@ -54,10 +54,10 @@ def create_material_from_properties(op, material, material_name):
     pbr.inputs['Roughness'].default_value = pbr_mr.get('roughnessFactor', 1)
 
     if 'metallicRoughnessTexture' in pbr_mr:
-        index = pbr_mr['baseColorTexture']['index']
+        index = pbr_mr['metallicRoughnessTexture']['index']
         mr_data = op.gltf['textures'][index]
         texture = {
-            'color_space': 'NONE',
+            'color_space': 'COLOR',
             'image': load_image_from_source(op, op.gltf['images'][mr_data['source']]),
             'label': "MetallicRoughness Texture",
             'mFactor': pbr_mr.get('metallicFactor', 1),
