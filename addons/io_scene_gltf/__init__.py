@@ -86,11 +86,12 @@ class ImportGLTF(bpy.types.Operator, ImportHelper):
             return lights.add_point_light(
                 color, desc.get("intensity", 1), name)
         elif ltype == "spot":
+            spot = desc.get("spot", {})
             return lights.add_spot_light(
                 color,
                 desc.get("intensity", 1),
-                desc.get("innerConeAngle", 0),
-                desc.get("outerConeAngle", math.pi / 4),
+                spot.get("innerConeAngle", 0),
+                spot.get("outerConeAngle", math.pi / 4),
                 name)
         elif ltype == "directional":
             return (
