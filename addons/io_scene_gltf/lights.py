@@ -2,6 +2,7 @@ import bpy
 import math
 
 incandescent_bulb = 0.0249
+ideal_555nm_source = 1 / 683
 
 
 def cd2W(intensity, efficiency, surface):
@@ -37,7 +38,7 @@ def add_point_light(color, intensity, name=None):
     emission = lamp_data.node_tree.nodes['Emission']
     emission.inputs['Color'].default_value = tuple(color) + (1,)
 
-    watt = cd2W(intensity, incandescent_bulb, surface=4 * math.pi)
+    watt = cd2W(intensity, ideal_555nm_source, surface=4 * math.pi)
     emission.inputs['Strength'].default_value = watt
     return lamp_data
 
@@ -64,8 +65,8 @@ def add_spot_light(
     # https://en.wikipedia.org/wiki/Solid_angle#Cone,_spherical_cap,_hemisphere
     emission.inputs['Strength'].default_value = cd2W(
         intensity,
-        incandescent_bulb,
-        surface=2 * math.pi * (1 - math.cos(outerConeAngle / 2)),
+        ideal_555nm_source,
+        surface = 2 * math.pi * (1 - math.cos(outerConeAngle / 2)),
     )
     return lamp_data
 
@@ -85,7 +86,7 @@ def add_directional_light(color, intensity, name=None):
     emission = lamp_data.node_tree.nodes['Emission']
     emission.inputs['Color'].default_value = tuple(color) + (1,)
 
-    watt = lux2W(intensity, incandescent_bulb)
+    watt = lux2W(intensity, ideal_555nm_source)
     emission.inputs['Strength'].default_value = watt
     return lamp_data
 
@@ -112,7 +113,7 @@ def setup_ambient_light(scene, color, intensity):
         bg = tree.nodes.new(type='ShaderNodeBackground')
 
     bg.inputs['Color'].default_value = tuple(color) + (1,)
-    bg.inputs['Strength'].default_value = lux2W(intensity, incandescent_bulb)
+    bg.inputs['Strength'].default_value = lux2W(intensity, ideal_555nm_source)
 
     world_output = tree.nodes['World Output']
     tree.links.new(world_output.inputs['Surface'], bg.outputs['Background'])
