@@ -137,4 +137,12 @@ def setup_environment(scene, op, idx):
     env.image = im
     # env.projection = 'EQUIRECTANGULAR'
 
+    tex_map = tree.nodes.new('ShaderNodeMapping')
+    tex_map.vector_type = 'TEXTURE'
+    # set tex mappings from `image_data` dict (these are arrays of three elements)
+    # tex_map.translation = image_data['translation']
+    # tex_map.scale = image_data['scale']
+    # tex_map.rotation = image_data['rotation']
+
+    tree.links.new(tex_map.outputs['Vector'], env.inputs['Vector'])
     tree.links.new(env.outputs['Color'], bg.inputs['Color'])
