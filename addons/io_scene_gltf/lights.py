@@ -1,5 +1,6 @@
 import bpy
 import math
+from io_scene_gltf.material_utils import load_image_from_source
 
 incandescent_bulb = 0.0249
 ideal_555nm_source = 1 / 683
@@ -117,3 +118,23 @@ def setup_ambient_light(scene, color, intensity):
 
     world_output = tree.nodes['World Output']
     tree.links.new(world_output.inputs['Surface'], bg.outputs['Background'])
+
+
+def setup_environment(scene, op, idx):
+    desc = op.gltf['extensions']['CMZ_environments']['environments'][idx]
+    setup_ambient_light(scene, (0, 0, 0), 1)
+    
+    tree = scene.world.node_tree
+    bg = tree.nodes['Background']
+
+    env = tree.nodes.new(type='ShaderNodeTexEnvironment')
+    texture_data = desc["image"]
+    image_data = {
+        "mimeType": texture_data["mimeType"],
+        "uri": texture_data["uri"]
+    }
+    im = load_image_from_source(op, image_data)
+    env.image = im
+    # env.projection = 'EQUIRECTANGULAR'
+
+    tree.links.new(env.outputs['Color'], bg.inputs['Color'])
