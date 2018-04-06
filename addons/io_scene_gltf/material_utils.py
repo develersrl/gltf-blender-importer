@@ -1,7 +1,8 @@
 import base64
 import os
 import tempfile
-from bpy_extras.image_utils import load_image
+import bpy
+# from bpy_extras.image_utils import load_image
 
 
 def load_image_from_source(op, source):
@@ -55,3 +56,7 @@ def call_on_tempfile(func, contents):
     finally:
         if path:
             os.remove(path)
+
+
+def load_image(image_path):
+    return bpy.data.images.load(image_path, check_existing=True)
