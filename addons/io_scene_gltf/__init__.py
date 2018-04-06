@@ -114,6 +114,10 @@ class ImportGLTF(bpy.types.Operator, ImportHelper):
             scene,
             desc.get("color", (0, 0, 0)),
             desc.get("intensity", 1))
+    
+    def setup_scene_CMZ_environments(self, scene, data):
+        idx = data["environment"]
+        lights.setup_environment(scene, self, idx)
 
     def generate_actions(self):
         if 'animations' in self.gltf:
