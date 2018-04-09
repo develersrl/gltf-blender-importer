@@ -128,21 +128,22 @@ def setup_environment(scene, op, idx):
     bg = tree.nodes['Background']
 
     env = tree.nodes.new(type='ShaderNodeTexEnvironment')
-    texture_data = desc["image"]
+    image_node = op.gltf['images'][desc['source']]
     image_data = {
-        "mimeType": texture_data["mimeType"],
-        "uri": texture_data["uri"]
+        "mimeType": image_node["mimeType"],
+        "uri": image_node["uri"]
     }
     im = load_image_from_source(op, image_data)
     env.image = im
     # env.projection = 'EQUIRECTANGULAR'
 
-    tex_map = tree.nodes.new('ShaderNodeMapping')
-    tex_map.vector_type = 'TEXTURE'
-    # set tex mappings from `image_data` dict (these are arrays of three elements)
-    # tex_map.translation = image_data['translation']
-    # tex_map.scale = image_data['scale']
-    # tex_map.rotation = image_data['rotation']
+    tex_coord = tree.nodes.new('ShaderNodeTexCoord')
 
+    tex_map = tree.nodes.new('ShaderNodeMapping')
+    tex_map.vector_type = 'POINT'
+    # set tex mappings from `image_data` dict (these are arrays of three elements)
+    # tex_map.rotation[2] =
+
+    tree.links.new(tex_coord.outputs['Generated'], tex_map.inputs['Vector'])
     tree.links.new(tex_map.outputs['Vector'], env.inputs['Vector'])
     tree.links.new(env.outputs['Color'], bg.inputs['Color'])
