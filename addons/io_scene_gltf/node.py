@@ -71,14 +71,14 @@ def set_transform(node, ob, pre_transform):
     ob.scale = sca
 
 
-def create_node(op, idx):
+def create_node(op, idx, scene):
     node = op.gltf['nodes'][idx]
 
     # print("Creating node: {}".format(idx) )
 
     def create(name, data):
         ob = bpy.data.objects.new(name, data)
-        bpy.context.scene.objects.link(ob)
+        scene.objects.link(ob)
         return ob
 
     objects = []
@@ -89,7 +89,7 @@ def create_node(op, idx):
 
     if 'camera' in node:
         camera_name = node.get('name', 'camera[%d]' % idx)
-        camera = create(camera_name, op.get_camera(node['camera']))
+        camera = create(camera_name, op.get_camera(node['camera'], scene))
         objects.append(camera)
 
     if 'extensions' in node:
@@ -122,7 +122,7 @@ def create_node(op, idx):
     parent = objects[0]
     children = node.get('children', [])
     for child_idx in children:
-        for child_node in create_node(op, child_idx):
+        for child_node in create_node(op, child_idx, scene):
             child_node.parent = parent
 
     return objects
@@ -148,7 +148,7 @@ def create_root_objects(op, roots, scene):
 
     for root_idx in roots:
         # Link in any objects in this tree
-        for ob in create_node(op, root_idx):
+        for ob in create_node(op, root_idx, scene):
             ob.parent = root_object
 
 
