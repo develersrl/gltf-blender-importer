@@ -70,9 +70,9 @@ class ImportGLTF(bpy.types.Operator, ImportHelper):
             self.meshes[idx] = mesh.create_mesh(self, idx)
         return self.meshes[idx]
 
-    def get_camera(self, idx):
+    def get_camera(self, idx, scene):
         if idx not in self.cameras:
-            self.cameras[idx] = camera.create_camera(self, idx)
+            self.cameras[idx] = camera.create_camera(self, idx, scene)
         return self.cameras[idx]
 
     def get_KHR_lights(self, data):
